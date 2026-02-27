@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube & カメラ</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0f0f0f;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: #1a1a1a;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #333;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 16px;
+      color: #aaa;
+      white-space: nowrap;
+    }
+
+    #url-input {
+      flex: 1;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 6px;
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    #url-input:focus {
+      border-color: #f00;
+    }
+
+    #load-btn {
+      background: #cc0000;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s;
+    }
+
+    #load-btn:hover {
+      background: #ff0000;
+    }
+
+    .split {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    .panel-label {
+      background: rgba(0,0,0,0.6);
+      padding: 6px 14px;
+      font-size: 12px;
+      color: #aaa;
+      letter-spacing: 0.05em;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .panel-label span {
+      font-weight: bold;
+      color: #fff;
+    }
+
+    .divider {
+      width: 4px;
+      background: #333;
+      cursor: col-resize;
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .divider:hover,
+    .divider.dragging {
+      background: #f00;
+    }
+
+    .divider::after {
+      content: '⋮';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #666;
+      font-size: 18px;
+    }
+
+    #youtube-panel {
+      border-right: none;
+    }
+
+    #youtube-frame {
+      flex: 1;
+      border: none;
+      background: #000;
+      display: block;
+    }
+
+    #youtube-placeholder {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #111;
+      gap: 16px;
+      color: #555;
+    }
+
+    #youtube-placeholder svg {
+      width: 64px;
+      height: 64px;
+    }
+
+    #youtube-placeholder p {
+      font-size: 14px;
+    }
+
+    #camera-panel {
+      position: relative;
+    }
+
+    #camera-video {
+      flex: 1;
+      width: 100%;
+      background: #111;
+      object-fit: cover;
+      display: block;
+    }
+
+    #camera-placeholder {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #111;
+      gap: 16px;
+      color: #555;
+    }
+
+    #camera-placeholder svg {
+      width: 64px;
+      height: 64px;
+    }
+
+    #camera-placeholder p {
+      font-size: 14px;
+    }
+
+    #camera-btn {
+      background: #2a2a2a;
+      border: 1px solid #555;
+      border-radius: 6px;
+      color: #fff;
+      padding: 10px 20px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    #camera-btn:hover {
+      background: #3a3a3a;
+      border-color: #888;
+    }
+
+    #camera-status {
+      position: absolute;
+      top: 36px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      border-radius: 4px;
+      padding: 4px 10px;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f00;
+      animation: blink 1.2s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    #camera-status.hidden {
+      display: none;
+    }
+
+    #error-msg {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #c00;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 13px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+
+    #error-msg.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>YouTube</h1>
+  <input id="url-input" type="text" placeholder="YouTubeのURLを貼り付けてください..." />
+  <button id="load-btn">読み込む</button>
+</header>
+
+<div class="split">
+
+  <!-- 左: YouTube -->
+  <div class="panel" id="youtube-panel">
+    <div class="panel-label"><span>YouTube</span></div>
+    <div id="youtube-placeholder">
+      <svg viewBox="0 0 24 24" fill="#333">
+        <path d="M21.582 7.186a2.506 2.506 0 0 0-1.762-1.773C18.265 5 12 5 12 5s-6.265 0-7.82.413A2.506 2.506 0 0 0 2.418 7.186C2 8.745 2 12 2 12s0 3.255.418 4.814a2.506 2.506 0 0 0 1.762 1.773C5.735 19 12 19 12 19s6.265 0 7.82-.413a2.506 2.506 0 0 0 1.762-1.773C22 15.255 22 12 22 12s0-3.255-.418-4.814zM10 15V9l5.2 3-5.2 3z"/>
+      </svg>
+      <p>上のバーにYouTubeのURLを入力してください</p>
+    </div>
+    <iframe id="youtube-frame" style="display:none" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+  </div>
+
+  <!-- 仕切り (ドラッグ可能) -->
+  <div class="divider" id="divider"></div>
+
+  <!-- 右: カメラ -->
+  <div class="panel" id="camera-panel">
+    <div class="panel-label"><span>カメラ</span></div>
+    <div id="camera-placeholder">
+      <svg viewBox="0 0 24 24" fill="#333">
+        <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+      </svg>
+      <p>カメラへのアクセスを許可してください</p>
+      <button id="camera-btn">カメラを起動する</button>
+    </div>
+    <video id="camera-video" style="display:none" autoplay playsinline muted></video>
+    <div id="camera-status" class="hidden">
+      <div class="dot"></div>
+      LIVE
+    </div>
+  </div>
+
+</div>
+
+<div id="error-msg"></div>
+
+<script>
+  // ---- YouTube URL → Embed URL 変換 ----
+  function toEmbedUrl(input) {
+    input = input.trim();
+    let videoId = null;
+    try {
+      const url = new URL(input.startsWith('http') ? input : 'https://' + input);
+      if (url.hostname.includes('youtu.be')) {
+        videoId = url.pathname.slice(1).split('?')[0];
+      } else if (url.hostname.includes('youtube.com')) {
+        videoId = url.searchParams.get('v');
+        if (!videoId && url.pathname.startsWith('/embed/')) {
+          videoId = url.pathname.split('/embed/')[1].split('?')[0];
+        }
+        if (!videoId && url.pathname.startsWith('/shorts/')) {
+          videoId = url.pathname.split('/shorts/')[1].split('?')[0];
+        }
+      }
+    } catch (_) {}
+    if (!videoId) return null;
+    return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+  }
+
+  const urlInput = document.getElementById('url-input');
+  const loadBtn = document.getElementById('load-btn');
+  const ytFrame = document.getElementById('youtube-frame');
+  const ytPlaceholder = document.getElementById('youtube-placeholder');
+  const errorMsg = document.getElementById('error-msg');
+
+  function showError(msg) {
+    errorMsg.textContent = msg;
+    errorMsg.classList.add('show');
+    setTimeout(() => errorMsg.classList.remove('show'), 3000);
+  }
+
+  function loadYouTube() {
+    const embedUrl = toEmbedUrl(urlInput.value);
+    if (!embedUrl) {
+      showError('有効なYouTube URLを入力してください');
+      return;
+    }
+    ytFrame.src = embedUrl;
+    ytPlaceholder.style.display = 'none';
+    ytFrame.style.display = 'block';
+  }
+
+  loadBtn.addEventListener('click', loadYouTube);
+  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadYouTube(); });
+
+  // ---- カメラ起動 ----
+  const cameraBtn = document.getElementById('camera-btn');
+  const cameraVideo = document.getElementById('camera-video');
+  const cameraPlaceholder = document.getElementById('camera-placeholder');
+  const cameraStatus = document.getElementById('camera-status');
+
+  cameraBtn.addEventListener('click', async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      cameraVideo.srcObject = stream;
+      cameraPlaceholder.style.display = 'none';
+      cameraVideo.style.display = 'block';
+      cameraStatus.classList.remove('hidden');
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        showError('カメラへのアクセスが拒否されました。ブラウザの設定を確認してください。');
+      } else if (err.name === 'NotFoundError') {
+        showError('カメラが見つかりません。');
+      } else {
+        showError('カメラの起動に失敗しました: ' + err.message);
+      }
+    }
+  });
+
+  // ---- ドラッグで仕切り調整 ----
+  const divider = document.getElementById('divider');
+  const leftPanel = document.getElementById('youtube-panel');
+  const rightPanel = document.getElementById('camera-panel');
+  let dragging = false;
+  let startX = 0;
+  let startLeftW = 0;
+
+  divider.addEventListener('mousedown', e => {
+    dragging = true;
+    startX = e.clientX;
+    startLeftW = leftPanel.getBoundingClientRect().width;
+    divider.classList.add('dragging');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const container = divider.parentElement;
+    const totalW = container.getBoundingClientRect().width - divider.offsetWidth;
+    const delta = e.clientX - startX;
+    let newLeft = startLeftW + delta;
+    newLeft = Math.max(200, Math.min(totalW - 200, newLeft));
+    const newRight = totalW - newLeft;
+    leftPanel.style.flex = 'none';
+    leftPanel.style.width = newLeft + 'px';
+    rightPanel.style.flex = 'none';
+    rightPanel.style.width = newRight + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (dragging) {
+      dragging = false;
+      divider.classList.remove('dragging');
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    }
+  });
+</script>
+
+</body>
+</html>

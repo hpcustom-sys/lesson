@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>スケジュール管理 (3/23〜4/3)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      padding: 30px 20px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      font-size: 1.5rem;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #7f8c8d;
+      font-size: 0.85rem;
+      margin-bottom: 24px;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      max-width: 900px;
+      margin: 0 auto 28px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 620px;
+    }
+
+    thead tr th {
+      background: #2c3e50;
+      color: white;
+      padding: 12px 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    thead tr th:first-child {
+      border-radius: 12px 0 0 0;
+      text-align: left;
+      padding-left: 20px;
+    }
+
+    thead tr th:last-child {
+      border-radius: 0 12px 0 0;
+    }
+
+    .date-sub {
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 400;
+      opacity: 0.75;
+      margin-top: 2px;
+    }
+
+    tbody tr {
+      transition: background 0.15s;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    tbody tr:hover {
+      background: #eef4fb;
+    }
+
+    td {
+      padding: 10px;
+      text-align: center;
+      border-bottom: 1px solid #e8edf2;
+    }
+
+    td:first-child {
+      text-align: left;
+      padding-left: 20px;
+      font-weight: 600;
+      color: #34495e;
+      font-size: 1rem;
+      white-space: nowrap;
+    }
+
+    /* チェックボックスをカスタムボタン化 */
+    .check-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .check-wrap input[type="checkbox"] {
+      display: none;
+    }
+
+    .check-wrap label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 2px solid #dce3eb;
+      background: #f8fafc;
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .check-wrap input:checked + label {
+      background: #e74c3c;
+      border-color: #c0392b;
+      color: white;
+    }
+
+    .check-wrap label:hover {
+      border-color: #e74c3c;
+      background: #fdecea;
+    }
+
+    .check-wrap input:checked + label:hover {
+      background: #c0392b;
+    }
+
+    /* 集計行 */
+    .summary-row td {
+      background: #ecf0f1;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: #2c3e50;
+      border-top: 2px solid #bdc3c7;
+    }
+
+    .summary-row td:first-child {
+      color: #2c3e50;
+    }
+
+    .count-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .count-0  { background: #d5f5e3; color: #1e8449; }
+    .count-1  { background: #fef9e7; color: #b7950b; }
+    .count-2  { background: #fdebd0; color: #d35400; }
+    .count-3  { background: #fce0e0; color: #c0392b; }
+    .count-4  { background: #c0392b; color: white; }
+
+    /* 結果パネル */
+    .result-panel {
+      max-width: 900px;
+      margin: 0 auto 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+      padding: 20px 24px;
+    }
+
+    .result-panel h2 {
+      font-size: 1rem;
+      color: #2c3e50;
+      margin-bottom: 14px;
+      border-bottom: 2px solid #ecf0f1;
+      padding-bottom: 8px;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .result-card {
+      border-radius: 8px;
+      padding: 10px 14px;
+      border-left: 4px solid;
+    }
+
+    .result-card.ok    { border-color: #27ae60; background: #eafaf1; }
+    .result-card.warn  { border-color: #e67e22; background: #fef5e7; }
+    .result-card.busy  { border-color: #e74c3c; background: #fdedec; }
+
+    .result-card .person-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #2c3e50;
+      margin-bottom: 4px;
+    }
+
+    .result-card .dates {
+      font-size: 0.75rem;
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .result-card .no-ng {
+      font-size: 0.75rem;
+      color: #27ae60;
+    }
+
+    .available-dates {
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 2px solid #ecf0f1;
+    }
+
+    .available-dates h3 {
+      font-size: 0.9rem;
+      color: #2c3e50;
+      margin-bottom: 10px;
+    }
+
+    .avail-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .avail-chip {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .avail-chip.all  { background: #d5f5e3; color: #1a6e35; }
+    .avail-chip.some { background: #fdebd0; color: #935116; }
+    .avail-chip.none { background: #fdedec; color: #922b21; }
+
+    .reset-btn {
+      display: block;
+      margin: 0 auto;
+      padding: 10px 30px;
+      background: #7f8c8d;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .reset-btn:hover { background: #5d6d7e; }
+
+    /* 確認ボタン */
+    .confirm-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .confirm-btn {
+      padding: 5px 10px;
+      border-radius: 20px;
+      border: 2px solid #bdc3c7;
+      background: #f0f4f8;
+      color: #95a5a6;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .confirm-btn:hover {
+      border-color: #27ae60;
+      color: #27ae60;
+      background: #eafaf1;
+    }
+
+    .confirm-btn.confirmed {
+      border-color: #27ae60;
+      background: #27ae60;
+      color: white;
+    }
+
+    .confirm-btn.confirmed:hover {
+      background: #1e8449;
+      border-color: #1e8449;
+    }
+
+    thead tr th.confirm-col {
+      min-width: 70px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>スケジュール管理</h1>
+<p class="subtitle">2026年3月23日（月）〜 4月3日（金）　平日のみ　|　×＝都合が悪い日</p>
+
+<div class="table-wrapper">
+  <table id="scheduleTable">
+    <thead>
+      <tr id="headerRow">
+        <th>名前</th>
+        <!-- 日付ヘッダーはJSで挿入 -->
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <!-- 行はJSで挿入 -->
+    </tbody>
+    <tfoot>
+      <tr class="summary-row" id="summaryRow">
+        <td>NG人数</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<div class="result-panel">
+  <h2>個人別 NG日まとめ</h2>
+  <div class="result-grid" id="personResults"></div>
+
+  <div class="available-dates">
+    <h3>全員OKの日 / 参加可能人数</h3>
+    <div class="avail-list" id="availList"></div>
+  </div>
+</div>
+
+<button class="reset-btn" onclick="resetAll()">リセット</button>
+
+<script>
+  // ===== 設定 =====
+  const MEMBERS = ['中田さん', '田村さん', '栗原さん', '畦地さん'];
+  const DOW = ['日','月','火','水','木','金','土'];
+
+  // 2026/3/23〜4/3 の平日を生成
+  function getWeekdays(startY, startM, startD, endY, endM, endD) {
+    const days = [];
+    let cur = new Date(startY, startM - 1, startD);
+    const end = new Date(endY, endM - 1, endD);
+    while (cur <= end) {
+      const dow = cur.getDay();
+      if (dow !== 0 && dow !== 6) {
+        days.push({
+          y: cur.getFullYear(),
+          m: cur.getMonth() + 1,
+          d: cur.getDate(),
+          dow: DOW[dow],
+          label: `${cur.getMonth()+1}/${cur.getDate()}`,
+          key: `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`
+        });
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    return days;
+  }
+
+  const DAYS = getWeekdays(2026,3,23, 2026,4,3);
+
+  // ===== 状態 =====
+  // state[memberName][dayKey] = true/false
+  let state = {};
+  MEMBERS.forEach(m => {
+    state[m] = {};
+    DAYS.forEach(d => { state[m][d.key] = false; });
+  });
+
+  // confirmed[memberName] = true/false
+  let confirmed = {};
+  MEMBERS.forEach(m => { confirmed[m] = false; });
+
+  // ===== 保存・復元 =====
+  const STORAGE_KEY = 'schedule_2026_0323';
+
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ng: state, confirmed }));
+  }
+
+  function loadState() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      // 旧形式（ngキーなし）との互換
+      const ng = parsed.ng || parsed;
+      MEMBERS.forEach(m => {
+        if (ng[m]) {
+          DAYS.forEach(d => { state[m][d.key] = !!ng[m][d.key]; });
+        }
+        if (parsed.confirmed) {
+          confirmed[m] = !!parsed.confirmed[m];
+        }
+      });
+    } catch(e) {}
+  }
+
+  // ===== テーブル構築 =====
+  function buildTable() {
+    // ヘッダー
+    const headerRow = document.getElementById('headerRow');
+    const confirmTh = document.createElement('th');
+    confirmTh.textContent = '確認';
+    confirmTh.className = 'confirm-col';
+    headerRow.appendChild(confirmTh);
+    DAYS.forEach(d => {
+      const th = document.createElement('th');
+      th.innerHTML = `${d.label}<span class="date-sub">${d.dow}</span>`;
+      headerRow.appendChild(th);
+    });
+
+    // 行
+    const tbody = document.getElementById('tableBody');
+    MEMBERS.forEach(member => {
+      const tr = document.createElement('tr');
+      const nameTd = document.createElement('td');
+      nameTd.textContent = member;
+      tr.appendChild(nameTd);
+
+      // 確認ボタン
+      const confirmTd = document.createElement('td');
+      const confirmWrap = document.createElement('div');
+      confirmWrap.className = 'confirm-wrap';
+      const btn = document.createElement('button');
+      btn.className = 'confirm-btn' + (confirmed[member] ? ' confirmed' : '');
+      btn.textContent = confirmed[member] ? '確認済' : '未確認';
+      btn.dataset.member = member;
+      btn.addEventListener('click', () => {
+        confirmed[member] = !confirmed[member];
+        btn.textContent = confirmed[member] ? '確認済' : '未確認';
+        btn.classList.toggle('confirmed', confirmed[member]);
+        saveState();
+        updateSummary();
+      });
+      confirmWrap.appendChild(btn);
+      confirmTd.appendChild(confirmWrap);
+      tr.appendChild(confirmTd);
+
+      DAYS.forEach(day => {
+        const td = document.createElement('td');
+        const wrap = document.createElement('div');
+        wrap.className = 'check-wrap';
+
+        const id = `chk_${member}_${day.key}`;
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = id;
+        input.checked = state[member][day.key];
+
+        const label = document.createElement('label');
+        label.htmlFor = id;
+        label.textContent = '×';
+        label.title = `${member} ${day.label}(${day.dow}) をNG`;
+
+        input.addEventListener('change', () => {
+          state[member][day.key] = input.checked;
+          saveState();
+          updateSummary();
+        });
+
+        wrap.appendChild(input);
+        wrap.appendChild(label);
+        td.appendChild(wrap);
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    // 集計行（確認列 + 日付列）
+    const summaryRow = document.getElementById('summaryRow');
+    summaryRow.appendChild(document.createElement('td')); // 確認列の空セル
+    DAYS.forEach(() => {
+      summaryRow.appendChild(document.createElement('td'));
+    });
+  }
+
+  // ===== 集計更新 =====
+  function updateSummary() {
+    // フッターのNG人数（cells[0]=NG人数ラベル, cells[1]=確認列空, cells[2]〜=日付列）
+    const summaryRow = document.getElementById('summaryRow');
+    const cells = summaryRow.querySelectorAll('td');
+    DAYS.forEach((day, i) => {
+      const count = MEMBERS.filter(m => state[m][day.key]).length;
+      const badge = document.createElement('span');
+      badge.className = `count-badge count-${count}`;
+      badge.textContent = `${count}人`;
+      cells[i + 2].innerHTML = '';
+      cells[i + 2].appendChild(badge);
+    });
+
+    // 個人別結果
+    const personResults = document.getElementById('personResults');
+    personResults.innerHTML = '';
+    MEMBERS.forEach(member => {
+      const ngDays = DAYS.filter(d => state[member][d.key]);
+      const card = document.createElement('div');
+      const isConfirmed = confirmed[member];
+      const cls = ngDays.length === 0 ? 'ok' : ngDays.length <= 2 ? 'warn' : 'busy';
+      card.className = `result-card ${cls}`;
+      const confirmLabel = isConfirmed
+        ? '<span style="font-size:0.7rem;background:#27ae60;color:white;padding:1px 7px;border-radius:10px;margin-left:6px;">確認済</span>'
+        : '<span style="font-size:0.7rem;background:#bdc3c7;color:white;padding:1px 7px;border-radius:10px;margin-left:6px;">未確認</span>';
+      card.innerHTML = `<div class="person-name">${member}${confirmLabel}</div>`;
+      if (ngDays.length === 0) {
+        card.innerHTML += `<div class="no-ng">全日程OK</div>`;
+      } else {
+        card.innerHTML += `<div class="dates">${ngDays.map(d=>`${d.label}(${d.dow})`).join('<br>')}</div>`;
+      }
+      personResults.appendChild(card);
+    });
+
+    // 全員OKの日
+    const availList = document.getElementById('availList');
+    availList.innerHTML = '';
+    DAYS.forEach(day => {
+      const ngCount = MEMBERS.filter(m => state[m][day.key]).length;
+      const chip = document.createElement('div');
+      const cls = ngCount === 0 ? 'all' : ngCount < MEMBERS.length ? 'some' : 'none';
+      chip.className = `avail-chip ${cls}`;
+      const okCount = MEMBERS.length - ngCount;
+      const label = ngCount === 0
+        ? `${day.label}(${day.dow}) 全員OK`
+        : ngCount === MEMBERS.length
+          ? `${day.label}(${day.dow}) 全員NG`
+          : `${day.label}(${day.dow}) ${okCount}人OK`;
+      chip.textContent = label;
+      availList.appendChild(chip);
+    });
+  }
+
+  function resetAll() {
+    if (!confirm('全てのチェックをリセットしますか？')) return;
+    MEMBERS.forEach(m => {
+      DAYS.forEach(d => { state[m][d.key] = false; });
+      confirmed[m] = false;
+    });
+    document.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+    document.querySelectorAll('.confirm-btn').forEach(btn => {
+      btn.textContent = '未確認';
+      btn.classList.remove('confirmed');
+    });
+    saveState();
+    updateSummary();
+  }
+
+  // ===== 初期化 =====
+  loadState();
+  buildTable();
+  updateSummary();
+</script>
+</body>
+</html>
