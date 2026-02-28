@@ -247,6 +247,43 @@
     .avail-chip.some { background: #fdebd0; color: #935116; }
     .avail-chip.none { background: #fdedec; color: #922b21; }
 
+    /* ツールバー */
+    .toolbar {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      max-width: 900px;
+      margin: 0 auto 20px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+
+    .toolbar-btn:active { transform: scale(0.97); }
+
+    .btn-export {
+      background: #2980b9;
+      color: white;
+    }
+    .btn-export:hover { background: #2471a3; }
+
+    .btn-import {
+      background: #27ae60;
+      color: white;
+    }
+    .btn-import:hover { background: #1e8449; }
+
     .reset-btn {
       display: block;
       margin: 0 auto;
@@ -333,6 +370,12 @@
 
 <h1>スケジュール管理</h1>
 <p class="subtitle">2026年3月23日（月）〜 4月3日（金）　平日のみ　|　×＝都合が悪い日</p>
+
+<div class="toolbar">
+  <button class="toolbar-btn btn-export" onclick="exportData()">📥 エクスポート</button>
+  <button class="toolbar-btn btn-import" onclick="document.getElementById('importInput').click()">📤 インポート</button>
+  <input type="file" id="importInput" accept=".json" style="display:none" onchange="importData(event)">
+</div>
 
 <div class="table-wrapper">
   <table id="scheduleTable">
@@ -574,6 +617,60 @@
       chip.textContent = label;
       availList.appendChild(chip);
     });
+  }
+
+  // ===== エクスポート =====
+  function exportData() {
+    const data = { ng: state, confirmed, exportedAt: new Date().toISOString() };
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `schedule_2026_0323_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📥 ファイルにエクスポートしました');
+  }
+
+  // ===== インポート =====
+  function importData(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        const ng = parsed.ng || parsed;
+        MEMBERS.forEach(m => {
+          if (ng[m]) {
+            DAYS.forEach(d => { state[m][d.key] = !!ng[m][d.key]; });
+          }
+          if (parsed.confirmed) {
+            confirmed[m] = !!parsed.confirmed[m];
+          }
+        });
+        // チェックボックスと確認ボタンのUI反映
+        MEMBERS.forEach(member => {
+          DAYS.forEach(day => {
+            const cb = document.getElementById(`chk_${member}_${day.key}`);
+            if (cb) cb.checked = state[member][day.key];
+          });
+          const btn = document.querySelector(`.confirm-btn[data-member="${member}"]`);
+          if (btn) {
+            btn.textContent = confirmed[member] ? '確認済' : '未確認';
+            btn.classList.toggle('confirmed', confirmed[member]);
+          }
+        });
+        saveState();
+        updateSummary();
+        showToast('📤 ファイルからインポートしました');
+      } catch {
+        showToast('⚠️ ファイルの読み込みに失敗しました');
+      }
+      event.target.value = '';
+    };
+    reader.readAsText(file);
   }
 
   function resetAll() {
