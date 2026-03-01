@@ -1,15 +1,18 @@
-import { Redis } from "@upstash/redis";
+import { put, list } from "@vercel/blob";
 
-const redis = Redis.fromEnv();
-const REDIS_KEY = "schedule_2026_0323";
+const BLOB_NAME = "schedule_2026_0323.json";
 
 export async function GET(request) {
   try {
-    const data = await redis.get(REDIS_KEY);
-    return Response.json({
-      success: true,
-      data: data || null
-    });
+    // Blob一覧からschedule.jsonを探す
+    const { blobs } = await list({ prefix: BLOB_NAME });
+    if (blobs.length === 0) {
+      return Response.json({ success: true, data: null });
+    }
+    // 最新のBlobを取得
+    const res = await fetch(blobs[0].url);
+    const data = await res.json();
+    return Response.json({ success: true, data });
   } catch (error) {
     console.error("GET /api/schedule error:", error);
     return Response.json(
@@ -28,7 +31,12 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    await redis.set(REDIS_KEY, body);
+    // JSONをBlobとして保存（同名で上書き）
+    await put(BLOB_NAME, JSON.stringify(body), {
+      contentType: "application/json",
+      access: "public",
+      addRandomSuffix: false,
+    });
     return Response.json({ success: true });
   } catch (error) {
     console.error("POST /api/schedule error:", error);
