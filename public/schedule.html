@@ -364,6 +364,22 @@
     thead tr th.confirm-col {
       min-width: 70px;
     }
+
+    /* 同期ステータス */
+    .sync-status {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      z-index: 998;
+      transition: opacity 0.3s;
+    }
+    .sync-status.synced  { background: #d5f5e3; color: #1e8449; }
+    .sync-status.syncing { background: #fef9e7; color: #b7950b; }
+    .sync-status.error   { background: #fce0e0; color: #c0392b; }
   </style>
 </head>
 <body>
@@ -408,6 +424,7 @@
 
 <button class="reset-btn" onclick="resetAll()">リセット</button>
 <div class="toast" id="toast"></div>
+<div class="sync-status" id="syncStatus"></div>
 
 <script>
   // ===== 設定 =====
@@ -462,26 +479,101 @@
     toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
   }
 
+  // --- 同期ステータス ---
+  function updateSyncStatus(status) {
+    const el = document.getElementById('syncStatus');
+    el.className = 'sync-status ' + status;
+    const messages = { synced: '✓ 同期済み', syncing: '↻ 同期中...', error: '⚠ 同期エラー' };
+    el.textContent = messages[status] || '';
+  }
+
+  // --- サーバー保存 (デバウンス) ---
+  let saveTimer = null;
+  function saveToServer(data) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      updateSyncStatus('syncing');
+      try {
+        const res = await fetch('/api/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error('Server error');
+        const result = await res.json();
+        if (result.success) {
+          updateSyncStatus('synced');
+        } else {
+          throw new Error(result.error || 'Save failed');
+        }
+      } catch (e) {
+        console.error('Save to server failed:', e);
+        updateSyncStatus('error');
+      }
+    }, 500);
+  }
+
   function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ng: state, confirmed }));
+    const data = { ng: state, confirmed };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    saveToServer(data);
+  }
+
+  // --- サーバーから読み込み ---
+  async function loadFromServer() {
+    try {
+      updateSyncStatus('syncing');
+      const res = await fetch('/api/schedule');
+      if (!res.ok) throw new Error('Server error');
+      const result = await res.json();
+      if (result.success && result.data) {
+        applyData(result.data);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ng: state, confirmed }));
+        updateSyncStatus('synced');
+        return true;
+      }
+      updateSyncStatus('synced');
+      return false;
+    } catch (e) {
+      console.error('Failed to load from server:', e);
+      updateSyncStatus('error');
+      return false;
+    }
+  }
+
+  // --- データ適用ヘルパー ---
+  function applyData(parsed) {
+    const ng = parsed.ng || parsed;
+    MEMBERS.forEach(m => {
+      if (ng[m]) {
+        DAYS.forEach(d => { state[m][d.key] = !!ng[m][d.key]; });
+      }
+      if (parsed.confirmed) {
+        confirmed[m] = !!parsed.confirmed[m];
+      }
+    });
+  }
+
+  // --- UI再描画ヘルパー ---
+  function refreshUI() {
+    MEMBERS.forEach(member => {
+      DAYS.forEach(day => {
+        const cb = document.getElementById(`chk_${member}_${day.key}`);
+        if (cb) cb.checked = state[member][day.key];
+      });
+      const btn = document.querySelector(`.confirm-btn[data-member="${member}"]`);
+      if (btn) {
+        btn.textContent = confirmed[member] ? '確認済' : '未確認';
+        btn.classList.toggle('confirmed', confirmed[member]);
+      }
+    });
+    updateSummary();
   }
 
   function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return;
-    try {
-      const parsed = JSON.parse(saved);
-      // 旧形式（ngキーなし）との互換
-      const ng = parsed.ng || parsed;
-      MEMBERS.forEach(m => {
-        if (ng[m]) {
-          DAYS.forEach(d => { state[m][d.key] = !!ng[m][d.key]; });
-        }
-        if (parsed.confirmed) {
-          confirmed[m] = !!parsed.confirmed[m];
-        }
-      });
-    } catch(e) {}
+    try { applyData(JSON.parse(saved)); } catch(e) {}
   }
 
   // ===== テーブル構築 =====
@@ -650,20 +742,8 @@
             confirmed[m] = !!parsed.confirmed[m];
           }
         });
-        // チェックボックスと確認ボタンのUI反映
-        MEMBERS.forEach(member => {
-          DAYS.forEach(day => {
-            const cb = document.getElementById(`chk_${member}_${day.key}`);
-            if (cb) cb.checked = state[member][day.key];
-          });
-          const btn = document.querySelector(`.confirm-btn[data-member="${member}"]`);
-          if (btn) {
-            btn.textContent = confirmed[member] ? '確認済' : '未確認';
-            btn.classList.toggle('confirmed', confirmed[member]);
-          }
-        });
+        refreshUI();
         saveState();
-        updateSummary();
         showToast('📤 ファイルからインポートしました');
       } catch {
         showToast('⚠️ ファイルの読み込みに失敗しました');
@@ -692,6 +772,11 @@
   loadState();
   buildTable();
   updateSummary();
+
+  // サーバーからデータを読み込んでUIを更新
+  loadFromServer().then(loaded => {
+    if (loaded) refreshUI();
+  });
 </script>
 </body>
 </html>
